@@ -1,0 +1,42 @@
+#!/bin/bash
+
+while true
+do
+
+if [[ ! -z $Docker_Hub_Username ]] && [[ ! -z $Docker_Hub_Password ]]
+then
+  echo "Logging into Docker hub..."
+  docker login -u "$Docker_Hub_Username" -p "$Docker_Hub_Password"
+fi
+
+echo "Loading Rancher versions from configmap..."
+if [[ -f /configmap/rancher-versions ]]
+then
+  RancherVersions=`cat /configmap/rancher-versions`
+else
+  RancherVersions='v2.4.9 v2.5.2'
+fi
+
+echo "Starting..."
+
+for RancherVersion in $RancherVersions
+do
+  echo "Working on $RancherVersion"
+  mkdir -p /tmp/${RancherVersion}/
+  cd /tmp/${RancherVersion}/
+  wget -O rancher-images.txt https://github.com/rancher/rancher/releases/download/${RancherVersion}/rancher-images.txt
+  wget -O rancher-save-images.sh https://github.com/rancher/rancher/releases/download/${RancherVersion}/rancher-save-images.sh
+  ##Need to remover the docker save
+  sed -i 's/docker save/#docker save/g' rancher-save-images.sh
+  wget -O rancher-load-images.sh https://github.com/rancher/rancher/releases/download/${RancherVersion}/rancher-load-images.sh
+  echo "Pulling images..."
+  bash ./rancher-save-images.sh --image-list ./rancher-images.txt
+  echo "Pushing images..."
+  bash ./rancher-load-images.sh --image-list ./rancher-images.txt --registry localhost:5000
+done
+
+echo "Success run"
+echo "Sleeping..."
+sleep $Sleep
+
+done
